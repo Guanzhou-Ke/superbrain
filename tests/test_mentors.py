@@ -1,0 +1,28 @@
+from backend.mentors import MentorLibrary, CRITICAL_CONSTITUTION
+
+LIB = "tests/fixtures/mentors"
+
+
+def test_roster_reads_only_frontmatter():
+    cards = MentorLibrary(LIB).roster()
+    ids = {c.id for c in cards}
+    assert ids == {"alice", "bob"}
+    assert all(c.belief for c in cards)
+
+
+def test_get_loads_full_body():
+    m = MentorLibrary(LIB).get("alice")
+    assert m.body.strip() != ""
+
+
+def test_render_system_prompt_includes_persona_and_constitution():
+    lib = MentorLibrary(LIB)
+    prompt = lib.render_system_prompt(lib.get("alice"))
+    assert "alice" in prompt.lower() or "Alice" in prompt
+    assert CRITICAL_CONSTITUTION.split("\n")[0] in prompt
+
+
+def test_get_unknown_raises():
+    import pytest
+    with pytest.raises(KeyError):
+        MentorLibrary(LIB).get("nobody")
