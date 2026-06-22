@@ -44,7 +44,7 @@ function MentorBubble({ bubble, mentor }: { bubble: BubbleState; mentor: MentorI
         )}
       </div>
       <div style={{
-        color: '#cbd5e1',
+        color: '#374151',
         fontSize: '14px',
         lineHeight: '1.6',
         whiteSpace: 'pre-wrap',
@@ -59,17 +59,17 @@ function MentorBubble({ bubble, mentor }: { bubble: BubbleState; mentor: MentorI
 function SynthesisBubble({ bubble }: { bubble: BubbleState }) {
   return (
     <div style={{
-      borderLeft: '4px solid #f59e0b',
+      borderLeft: '4px solid #d97706',
       paddingLeft: '12px',
       marginBottom: '16px',
-      background: 'rgba(245, 158, 11, 0.05)',
+      background: '#fffbeb',
       padding: '12px',
       borderRadius: '0 8px 8px 0',
     }}>
       <div style={{
         fontSize: '12px',
         fontWeight: 700,
-        color: '#f59e0b',
+        color: '#d97706',
         marginBottom: '6px',
       }}>
         Synthesis
@@ -79,14 +79,14 @@ function SynthesisBubble({ bubble }: { bubble: BubbleState }) {
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            background: '#f59e0b',
+            background: '#d97706',
             marginLeft: '8px',
             animation: 'blink 1s infinite',
           }} />
         )}
       </div>
       <div style={{
-        color: '#e2e8f0',
+        color: '#1e293b',
         fontSize: '14px',
         lineHeight: '1.6',
         whiteSpace: 'pre-wrap',
@@ -105,11 +105,11 @@ function PhaseBadge({ name }: { name: string }) {
       alignItems: 'center',
       gap: '6px',
       padding: '4px 10px',
-      background: '#1e293b',
-      border: '1px solid #334155',
+      background: '#f3f4f6',
+      border: '1px solid #e5e7eb',
       borderRadius: '12px',
       fontSize: '11px',
-      color: '#94a3b8',
+      color: '#6b7280',
       marginBottom: '12px',
     }}>
       <span style={{
@@ -127,10 +127,10 @@ function PhaseBadge({ name }: { name: string }) {
 function ReportBubble({ markdown }: { markdown: string }) {
   return (
     <div style={{
-      border: '1px solid #334155',
+      border: '1px solid #e5e7eb',
       borderRadius: '8px',
       padding: '16px',
-      background: '#0f1929',
+      background: '#faf5ff',
       marginBottom: '16px',
     }}>
       <div style={{
@@ -144,7 +144,7 @@ function ReportBubble({ markdown }: { markdown: string }) {
         Deep Review Report
       </div>
       <div style={{
-        color: '#cbd5e1',
+        color: '#374151',
         fontSize: '13px',
         lineHeight: '1.7',
         whiteSpace: 'pre-wrap',
@@ -164,18 +164,18 @@ function RouteInfo({ speakers, reason }: { speakers: string[]; reason?: string }
       alignItems: 'center',
       gap: '8px',
       padding: '6px 10px',
-      background: '#0d1117',
-      border: '1px solid #1e293b',
+      background: '#f9fafb',
+      border: '1px solid #e5e7eb',
       borderRadius: '6px',
       marginBottom: '16px',
       flexWrap: 'wrap',
     }}>
-      <span style={{ fontSize: '11px', color: '#475569' }}>Routing to:</span>
+      <span style={{ fontSize: '11px', color: '#6b7280' }}>Routing to:</span>
       {speakers.map((s) => (
         <span key={s} style={{
           padding: '2px 8px',
-          background: '#1e293b',
-          color: '#94a3b8',
+          background: '#e0e7ff',
+          color: '#4338ca',
           borderRadius: '4px',
           fontSize: '11px',
           fontWeight: 600,
@@ -184,7 +184,7 @@ function RouteInfo({ speakers, reason }: { speakers: string[]; reason?: string }
         </span>
       ))}
       {reason && (
-        <span style={{ fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>{reason}</span>
+        <span style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>{reason}</span>
       )}
     </div>
   );
@@ -199,7 +199,7 @@ function UserBubble({ text }: { text: string }) {
     }}>
       <div style={{
         maxWidth: '70%',
-        background: '#1a56db',
+        background: '#2563eb',
         color: '#fff',
         padding: '10px 14px',
         borderRadius: '12px 12px 2px 12px',
@@ -236,14 +236,14 @@ export function ChatStream({ bubbles, mentorsById }: ChatStreamProps) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#334155',
+          color: '#9ca3af',
           gap: '8px',
         }}>
           <div style={{ fontSize: '32px' }}>🧠</div>
-          <div style={{ fontSize: '16px', fontWeight: 600 }}>SuperBrain</div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#374151' }}>SuperBrain</div>
           <div style={{ fontSize: '13px' }}>Ask your mentor committee anything</div>
           <div style={{ fontSize: '12px', marginTop: '8px' }}>
-            Use <code style={{ background: '#1e293b', padding: '2px 6px', borderRadius: '4px', color: '#7c3aed' }}>/review &lt;idea&gt;</code> for deep analysis
+            Use <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px', color: '#7c3aed' }}>/review &lt;idea&gt;</code> for deep analysis
           </div>
         </div>
       )}

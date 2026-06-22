@@ -12,19 +12,19 @@ export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarPro
     <aside style={{
       width: '220px',
       minWidth: '180px',
-      borderRight: '1px solid #2a2a2a',
+      borderRight: '1px solid #e5e7eb',
       display: 'flex',
       flexDirection: 'column',
-      background: '#111',
+      background: '#f9fafb',
       overflowY: 'auto',
     }}>
       <div style={{
         padding: '16px 12px 8px',
         fontWeight: 700,
         fontSize: '15px',
-        color: '#e2e8f0',
+        color: '#1e293b',
         letterSpacing: '0.02em',
-        borderBottom: '1px solid #2a2a2a',
+        borderBottom: '1px solid #e5e7eb',
       }}>
         SuperBrain
       </div>
@@ -34,7 +34,7 @@ export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarPro
         style={{
           margin: '10px 10px 4px',
           padding: '8px 12px',
-          background: '#1a56db',
+          background: '#2563eb',
           color: '#fff',
           border: 'none',
           borderRadius: '6px',
@@ -49,7 +49,7 @@ export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarPro
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
         {conversations.length === 0 && (
-          <p style={{ color: '#555', fontSize: '12px', padding: '8px 12px' }}>
+          <p style={{ color: '#9ca3af', fontSize: '12px', padding: '8px 12px' }}>
             No conversations yet
           </p>
         )}
@@ -62,10 +62,10 @@ export function Sidebar({ conversations, activeId, onSelect, onNew }: SidebarPro
               width: '100%',
               textAlign: 'left',
               padding: '8px 12px',
-              background: c.id === activeId ? '#1e293b' : 'transparent',
-              color: c.id === activeId ? '#e2e8f0' : '#94a3b8',
+              background: c.id === activeId ? '#e0e7ff' : 'transparent',
+              color: c.id === activeId ? '#1e293b' : '#64748b',
               border: 'none',
-              borderLeft: c.id === activeId ? '3px solid #1a56db' : '3px solid transparent',
+              borderLeft: c.id === activeId ? '3px solid #2563eb' : '3px solid transparent',
               cursor: 'pointer',
               fontSize: '13px',
               whiteSpace: 'nowrap',

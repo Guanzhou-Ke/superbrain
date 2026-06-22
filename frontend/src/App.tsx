@@ -318,8 +318,8 @@ function App() {
     <div style={{
       display: 'flex',
       height: '100vh',
-      background: '#0a0a0a',
-      color: '#e2e8f0',
+      background: '#ffffff',
+      color: '#1e293b',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       overflow: 'hidden',
     }}>
@@ -339,11 +339,11 @@ function App() {
       }}>
         {error && (
           <div style={{
-            background: '#450a0a',
-            color: '#fca5a5',
+            background: '#fef2f2',
+            color: '#dc2626',
             padding: '8px 16px',
             fontSize: '13px',
-            borderBottom: '1px solid #7f1d1d',
+            borderBottom: '1px solid #fecaca',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -351,7 +351,7 @@ function App() {
             {error}
             <button
               onClick={() => setError(null)}
-              style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '16px' }}
+              style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '16px' }}
             >
               ×
             </button>

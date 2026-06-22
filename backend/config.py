@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "gemini-3.5-flash"
     tavily_api_key: str | None = None
+    port: int = 8000
     db_path: str = "superbrain.db"
     max_chat_speakers: int = 4
     review_rounds: int = 3

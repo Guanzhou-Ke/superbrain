@@ -45,8 +45,8 @@ export function Composer({ mode, onModeChange, onSend, disabled }: ComposerProps
   return (
     <div style={{
       padding: '12px 16px',
-      borderTop: '1px solid #2a2a2a',
-      background: '#0f0f0f',
+      borderTop: '1px solid #e5e7eb',
+      background: '#f9fafb',
     }}>
       {/* Mode selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -59,7 +59,7 @@ export function Composer({ mode, onModeChange, onSend, disabled }: ComposerProps
             borderRadius: '4px',
             border: 'none',
             cursor: 'pointer',
-            background: mode === 'chat' ? '#1a56db' : '#1e293b',
+            background: mode === 'chat' ? '#2563eb' : '#e5e7eb',
             color: mode === 'chat' ? '#fff' : '#64748b',
           }}
         >
@@ -74,13 +74,13 @@ export function Composer({ mode, onModeChange, onSend, disabled }: ComposerProps
             borderRadius: '4px',
             border: 'none',
             cursor: 'pointer',
-            background: mode === 'review' ? '#7c3aed' : '#1e293b',
+            background: mode === 'review' ? '#7c3aed' : '#e5e7eb',
             color: mode === 'review' ? '#fff' : '#64748b',
           }}
         >
           Deep Review
         </button>
-        <span style={{ fontSize: '11px', color: '#444', alignSelf: 'center', marginLeft: '4px' }}>
+        <span style={{ fontSize: '11px', color: '#9ca3af', alignSelf: 'center', marginLeft: '4px' }}>
           Tip: type /review &lt;idea&gt; to deep review
         </span>
       </div>
@@ -101,10 +101,10 @@ export function Composer({ mode, onModeChange, onSend, disabled }: ComposerProps
           rows={3}
           style={{
             flex: 1,
-            background: '#1a1a1a',
-            border: `1px solid ${mode === 'review' ? '#4c1d95' : '#2a2a2a'}`,
+            background: '#ffffff',
+            border: `1px solid ${mode === 'review' ? '#c4b5fd' : '#d1d5db'}`,
             borderRadius: '8px',
-            color: '#e2e8f0',
+            color: '#1e293b',
             padding: '10px 12px',
             fontSize: '14px',
             resize: 'none',
@@ -117,8 +117,8 @@ export function Composer({ mode, onModeChange, onSend, disabled }: ComposerProps
           disabled={disabled || !text.trim()}
           style={{
             padding: '10px 18px',
-            background: disabled || !text.trim() ? '#1e293b' : (mode === 'review' ? '#7c3aed' : '#1a56db'),
-            color: disabled || !text.trim() ? '#475569' : '#fff',
+            background: disabled || !text.trim() ? '#e5e7eb' : (mode === 'review' ? '#7c3aed' : '#2563eb'),
+            color: disabled || !text.trim() ? '#9ca3af' : '#fff',
             border: 'none',
             borderRadius: '8px',
             cursor: disabled || !text.trim() ? 'not-allowed' : 'pointer',
