@@ -1,9 +1,130 @@
 import { useEffect, useRef } from 'react';
-import type { BubbleState, MentorInfo } from '../App';
+import type { CSSProperties } from 'react';
+import 'katex/dist/katex.min.css';
+import ReactMarkdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
+import rehypeSanitize from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import type { BubbleState, MentorInfo } from '../bubbles';
+
+export type ChatRunStatus = 'idle' | 'routing' | 'streaming' | 'synthesizing' | 'reviewing';
 
 interface ChatStreamProps {
   bubbles: BubbleState[];
   mentorsById: Map<string, MentorInfo>;
+  status?: ChatRunStatus;
+  progressDetail?: string | null;
+}
+
+const markdownComponents = {
+  h1: (props: React.ComponentProps<'h1'>) => <h1 style={markdownStyles.h1} {...props} />,
+  h2: (props: React.ComponentProps<'h2'>) => <h2 style={markdownStyles.h2} {...props} />,
+  h3: (props: React.ComponentProps<'h3'>) => <h3 style={markdownStyles.h3} {...props} />,
+  p: (props: React.ComponentProps<'p'>) => <p style={markdownStyles.p} {...props} />,
+  ul: (props: React.ComponentProps<'ul'>) => <ul style={markdownStyles.list} {...props} />,
+  ol: (props: React.ComponentProps<'ol'>) => <ol style={markdownStyles.list} {...props} />,
+  blockquote: (props: React.ComponentProps<'blockquote'>) => <blockquote style={markdownStyles.blockquote} {...props} />,
+  code: ({ className, ...props }: React.ComponentProps<'code'>) => (
+    <code
+      className={className}
+      style={className ? markdownStyles.codeBlockCode : markdownStyles.code}
+      {...props}
+    />
+  ),
+  pre: (props: React.ComponentProps<'pre'>) => <pre style={markdownStyles.pre} {...props} />,
+  table: (props: React.ComponentProps<'table'>) => <table style={markdownStyles.table} {...props} />,
+  th: (props: React.ComponentProps<'th'>) => <th style={markdownStyles.th} {...props} />,
+  td: (props: React.ComponentProps<'td'>) => <td style={markdownStyles.td} {...props} />,
+};
+
+const markdownStyles: Record<string, CSSProperties> = {
+  h1: { fontSize: '20px', margin: '0 0 12px', lineHeight: 1.25 },
+  h2: { fontSize: '16px', margin: '16px 0 8px', lineHeight: 1.35 },
+  h3: { fontSize: '14px', margin: '12px 0 6px', lineHeight: 1.35 },
+  p: { margin: '0 0 10px' },
+  list: { margin: '0 0 10px 20px', padding: 0 },
+  blockquote: {
+    margin: '8px 0',
+    padding: '8px 12px',
+    borderLeft: '3px solid #cbd5e1',
+    background: '#f8fafc',
+  },
+  code: {
+    background: '#f1f5f9',
+    borderRadius: '4px',
+    padding: '1px 4px',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '0.92em',
+  },
+  pre: {
+    overflowX: 'auto',
+    background: '#f8fafc',
+    color: '#0f172a',
+    border: '1px solid #e2e8f0',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    fontSize: '12px',
+    lineHeight: 1.5,
+  },
+  codeBlockCode: {
+    background: 'transparent',
+    padding: 0,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: 'inherit',
+  },
+  table: {
+    borderCollapse: 'collapse',
+    width: '100%',
+    margin: '10px 0',
+    fontSize: '13px',
+  },
+  th: {
+    border: '1px solid #cbd5e1',
+    padding: '6px 8px',
+    background: '#f1f5f9',
+    textAlign: 'left',
+  },
+  td: {
+    border: '1px solid #cbd5e1',
+    padding: '6px 8px',
+  },
+};
+
+function MarkdownContent({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeSanitize, rehypeKatex]}
+      components={markdownComponents}
+    >
+      {normalizeMathBlocks(text)}
+    </ReactMarkdown>
+  );
+}
+
+function normalizeMathBlocks(text: string): string {
+  return text.replace(/^\s*\$\$(.+?)\$\$\s*$/gm, (_, formula: string) => `$$\n${formula.trim()}\n$$`);
+}
+
+function TypingDots({ color = '#64748b' }: { color?: string }) {
+  return (
+    <span style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }} aria-label="typing">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: '5px',
+            height: '5px',
+            borderRadius: '50%',
+            background: color,
+            animation: 'blink 1s infinite',
+            animationDelay: `${i * 120}ms`,
+          }}
+        />
+      ))}
+    </span>
+  );
 }
 
 function MentorBubble({ bubble, mentor }: { bubble: BubbleState; mentor: MentorInfo | undefined }) {
@@ -47,10 +168,9 @@ function MentorBubble({ bubble, mentor }: { bubble: BubbleState; mentor: MentorI
         color: '#374151',
         fontSize: '14px',
         lineHeight: '1.6',
-        whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
       }}>
-        {bubble.text || (bubble.streaming ? ' ' : '')}
+        {bubble.text ? <MarkdownContent text={bubble.text} /> : (bubble.streaming ? <TypingDots color={color} /> : null)}
       </div>
     </div>
   );
@@ -89,10 +209,9 @@ function SynthesisBubble({ bubble }: { bubble: BubbleState }) {
         color: '#1e293b',
         fontSize: '14px',
         lineHeight: '1.6',
-        whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
       }}>
-        {bubble.text}
+        {bubble.text ? <MarkdownContent text={bubble.text} /> : (bubble.streaming ? <TypingDots color="#d97706" /> : null)}
       </div>
     </div>
   );
@@ -147,12 +266,56 @@ function ReportBubble({ markdown }: { markdown: string }) {
         color: '#374151',
         fontSize: '13px',
         lineHeight: '1.7',
-        whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
-        fontFamily: 'monospace',
       }}>
-        {markdown}
+        <MarkdownContent text={markdown} />
       </div>
+    </div>
+  );
+}
+
+function ThinkingStatus({ status, detail }: { status: ChatRunStatus; detail?: string | null }) {
+  const labels: Record<ChatRunStatus, string> = {
+    idle: '',
+    routing: '正在思考',
+    streaming: '导师正在发言...',
+    synthesizing: '正在整合结论...',
+    reviewing: '正在进行深度评审...',
+  };
+  const defaultDetails: Record<ChatRunStatus, string> = {
+    idle: '',
+    routing: '主持人正在理解问题',
+    streaming: '多位导师并行生成观点',
+    synthesizing: '主持人整合共识、分歧与下一步',
+    reviewing: '按阶段生成评审报告',
+  };
+  if (status === 'idle') return null;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-chat-item="status"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '8px',
+        maxWidth: '80%',
+        padding: '8px 12px',
+        background: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: '999px',
+        color: '#1e3a8a',
+        fontSize: '13px',
+        marginBottom: '16px',
+        alignSelf: 'flex-start',
+        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.08)',
+      }}
+    >
+      <TypingDots />
+      <strong style={{ whiteSpace: 'nowrap' }}>{labels[status]}</strong>
+      <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {detail || defaultDetails[status]}
+      </span>
     </div>
   );
 }
@@ -196,7 +359,7 @@ function UserBubble({ text }: { text: string }) {
       display: 'flex',
       justifyContent: 'flex-end',
       marginBottom: '16px',
-    }}>
+    }} data-chat-item="user">
       <div style={{
         maxWidth: '70%',
         background: '#2563eb',
@@ -214,7 +377,7 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
-export function ChatStream({ bubbles, mentorsById }: ChatStreamProps) {
+export function ChatStream({ bubbles, mentorsById, status = 'idle', progressDetail = null }: ChatStreamProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -229,7 +392,7 @@ export function ChatStream({ bubbles, mentorsById }: ChatStreamProps) {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      {bubbles.length === 0 && (
+      {bubbles.length === 0 && status === 'idle' && (
         <div style={{
           flex: 1,
           display: 'flex',
@@ -278,6 +441,8 @@ export function ChatStream({ bubbles, mentorsById }: ChatStreamProps) {
             return null;
         }
       })}
+
+      <ThinkingStatus status={status} detail={progressDetail} />
 
       <div ref={bottomRef} />
     </div>

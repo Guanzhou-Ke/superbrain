@@ -14,6 +14,7 @@ dependencies = [
     "python-frontmatter",
     "python-dotenv",
     "httpx",
+    "reportlab>=5.0.0",
 ]
 
 [project.scripts]

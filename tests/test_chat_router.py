@@ -14,8 +14,10 @@ class ScriptProvider(LLMProvider):
         self._route = route_json
         self._texts = list(mentor_texts)
         self._first = True
+        self.calls = []
 
     async def stream(self, messages, model=None, temperature=0.7):
+        self.calls.append(messages)
         if self._first:
             self._first = False
             yield self._route
@@ -28,14 +30,17 @@ class ScriptProvider(LLMProvider):
 @pytest.mark.asyncio
 async def test_route_parses_and_caps():
     rj = '{"speakers":[{"mentor_id":"alice","directive":"d","order":1}],"synthesize":false}'
+    provider = ScriptProvider(rj, [])
     orch = ChatOrchestrator(
-        ScriptProvider(rj, []),
+        provider,
         MentorLibrary(LIB),
         Store(":memory:"),
         max_speakers=4,
     )
-    d = await orch.route("hi", [], [])
+    d = await orch.route("hi", [], [{"kind": "preference", "content": "偏好简洁回答"}])
     assert d.speakers[0].mentor_id == "alice"
+    assert "长期记忆" in provider.calls[0][0]["content"]
+    assert "偏好简洁回答" in provider.calls[0][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -55,6 +60,69 @@ async def test_run_turn_emits_events_and_persists():
     assert "route" in types and "done" in types
     msgs = store.get_messages(cid)
     assert any(m["role"] == "mentor" for m in msgs)
+
+
+@pytest.mark.asyncio
+async def test_run_turn_updates_generic_conversation_title_from_first_user_message():
+    rj = '{"speakers":[{"mentor_id":"alice","directive":"d","order":1}],"synthesize":false}'
+    store = Store(":memory:")
+    orch = ChatOrchestrator(
+        ScriptProvider(rj, ["hello there"]),
+        MentorLibrary(LIB),
+        store,
+        max_speakers=4,
+    )
+    cid = store.create_conversation("Conversation 2026-06-22")
+
+    _ = [ev async for ev in orch.run_turn(cid, "我想研究无人机强化学习中的安全约束和奖励函数设计")]
+
+    assert store.get_conversation(cid)["title"] == "我想研究无人机强化学习中的安全约束和奖励函数设计"
+
+
+@pytest.mark.asyncio
+async def test_run_turn_streams_safe_progress_events():
+    rj = '{"speakers":[{"mentor_id":"alice","directive":"d","order":1}],"synthesize":true}'
+    store = Store(":memory:")
+    orch = ChatOrchestrator(
+        ScriptProvider(rj, ["hello there", "summary"]),
+        MentorLibrary(LIB),
+        store,
+        max_speakers=4,
+    )
+    cid = store.create_conversation("t")
+
+    events = [ev async for ev in orch.run_turn(cid, "hi")]
+    progress = [ev for ev in events if ev["type"] == "progress"]
+
+    assert progress[0]["message"] == "读取长期记忆"
+    assert any(ev["message"] == "分析问题并编排导师" for ev in progress)
+    assert any("已邀请" in ev["message"] and "Alice" in ev["message"] for ev in progress)
+    assert any(ev["message"] == "主持人正在汇总结论" for ev in progress)
+    assert events.index(progress[0]) < events.index(next(ev for ev in events if ev["type"] == "route"))
+
+
+@pytest.mark.asyncio
+async def test_run_turn_records_explicit_memory_and_emits_event():
+    rj = '{"speakers":[{"mentor_id":"alice","directive":"d","order":1}],"synthesize":false}'
+    store = Store(":memory:")
+    orch = ChatOrchestrator(
+        ScriptProvider(rj, ["hello there"]),
+        MentorLibrary(LIB),
+        store,
+        max_speakers=4,
+    )
+    cid = store.create_conversation("t")
+
+    events = [ev async for ev in orch.run_turn(cid, "请记住：我的偏好是回答要简洁")]
+
+    memories = store.get_long_term()
+    assert memories[0]["kind"] == "preference"
+    assert memories[0]["content"] == "我的偏好是回答要简洁"
+    assert {
+        "type": "memory_saved",
+        "kind": "preference",
+        "content": "我的偏好是回答要简洁",
+    } in events
 
 
 @pytest.mark.asyncio
@@ -102,7 +170,8 @@ async def test_run_turn_emits_expected_event_sequence():
     cid = store.create_conversation("t")
     events = [ev async for ev in orch.run_turn(cid, "hi")]
     types = [e["type"] for e in events]
-    assert types[0] == "route"
+    assert types[0] == "progress"
+    assert "route" in types
     assert "mentor_start" in types
     assert "token" in types
     assert "mentor_end" in types

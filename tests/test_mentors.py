@@ -26,3 +26,15 @@ def test_get_unknown_raises():
     import pytest
     with pytest.raises(KeyError):
         MentorLibrary(LIB).get("nobody")
+
+
+def test_default_config_includes_kaiming_and_renders_all_prompts():
+    lib = MentorLibrary("config/mentors")
+    ids = {card.id for card in lib.roster()}
+
+    assert "kaiming" in ids
+    for card in lib.roster():
+        prompt = lib.render_system_prompt(lib.get(card.id))
+        assert card.name in prompt
+        assert "你的学术 taste" in prompt
+        assert CRITICAL_CONSTITUTION.split("\n")[0] in prompt

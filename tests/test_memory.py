@@ -36,6 +36,15 @@ def test_list_conversations():
     assert titles == {"first", "second"}
 
 
+def test_update_conversation_title():
+    s = Store(":memory:")
+    cid = s.create_conversation("Conversation 2026")
+
+    assert s.update_conversation_title(cid, "无人机强化学习安全约束") is True
+    assert s.get_conversation(cid)["title"] == "无人机强化学习安全约束"
+    assert s.update_conversation_title("missing", "x") is False
+
+
 def test_add_message_returns_id():
     s = Store(":memory:")
     cid = s.create_conversation("x")
@@ -53,3 +62,28 @@ def test_message_defaults():
     assert msgs[0]["mode"] == "chat"
     assert msgs[0]["mentor_id"] is None
     assert msgs[0]["is_silent"] == 0
+
+
+def test_delete_conversation_removes_related_rows():
+    s = Store(":memory:")
+    cid = s.create_conversation("delete me")
+    other = s.create_conversation("keep me")
+    s.add_message(cid, "user", "remove")
+    s.save_report(cid, "# remove")
+    s.add_message(other, "user", "keep")
+    s.save_report(other, "# keep")
+
+    assert s.delete_conversation(cid) is True
+
+    assert s.get_conversation(cid) is None
+    assert s.get_messages(cid) == []
+    assert s.get_reports(cid) == []
+    assert s.get_conversation(other)["title"] == "keep me"
+    assert len(s.get_messages(other)) == 1
+    assert s.get_reports(other)[0]["markdown"] == "# keep"
+
+
+def test_delete_missing_conversation_returns_false():
+    s = Store(":memory:")
+
+    assert s.delete_conversation("missing") is False

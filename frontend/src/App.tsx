@@ -1,66 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import {
   listMentors,
   listConversations,
   createConversation,
+  deleteConversation,
+  exportConversation,
   getMessages,
   streamChat,
   type Mentor,
   type Conversation,
-  type Message,
+  type ExportFormat,
 } from './api';
 import { Sidebar } from './components/Sidebar';
-import { ChatStream } from './components/ChatStream';
+import { ChatStream, type ChatRunStatus } from './components/ChatStream';
 import { MentorRoster } from './components/MentorRoster';
 import { Composer, type ChatMode } from './components/Composer';
+import { Toast } from './components/Toast';
+import { messagesAsBubbles, type BubbleState, type MentorInfo } from './bubbles';
+import { clampPanelWidth, readStoredPanelWidth } from './panels';
 import './App.css';
 
-export interface MentorInfo {
-  id: string;
-  name: string;
-  color: string;
-}
-
-// Discriminated union for all bubble types in the chat stream
-export type BubbleState =
-  | { kind: 'user'; text: string; mentorId: never; name: never; color: never; streaming: never; speakers: never; reason: never }
-  | { kind: 'route'; speakers: string[]; reason?: string; text: never; mentorId: never; name: never; color: never; streaming: never }
-  | { kind: 'mentor'; mentorId: string; name: string; color: string; text: string; streaming: boolean; speakers: never; reason: never }
-  | { kind: 'synthesis'; text: string; streaming: boolean; mentorId: never; name: never; color: never; speakers: never; reason: never }
-  | { kind: 'phase'; name: string; text: never; mentorId: never; color: never; streaming: never; speakers: never; reason: never }
-  | { kind: 'report'; text: string; mentorId: never; name: never; color: never; streaming: never; speakers: never; reason: never };
-
-function messagesAsBubbles(messages: Message[], mentorsById: Map<string, MentorInfo>): BubbleState[] {
-  const bubbles: BubbleState[] = [];
-  for (const msg of messages) {
-    if (msg.role === 'user') {
-      bubbles.push({
-        kind: 'user',
-        text: msg.content,
-      } as BubbleState);
-    } else if (msg.role === 'assistant') {
-      const mentorId = msg.mentor_id || 'moderator';
-      const mentor = mentorsById.get(mentorId);
-      if (mentorId === 'moderator') {
-        bubbles.push({
-          kind: 'synthesis',
-          text: msg.content,
-          streaming: false,
-        } as BubbleState);
-      } else {
-        bubbles.push({
-          kind: 'mentor',
-          mentorId,
-          name: mentor?.name || mentorId,
-          color: mentor?.color || '#555',
-          text: msg.content,
-          streaming: false,
-        } as BubbleState);
-      }
-    }
-  }
-  return bubbles;
-}
+const LEFT_PANEL = { key: 'superbrain.leftPanelWidth', fallback: 220, min: 180, max: 420 };
+const RIGHT_PANEL = { key: 'superbrain.rightPanelWidth', fallback: 220, min: 180, max: 480 };
 
 function App() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
@@ -71,7 +33,62 @@ function App() {
   const [activeSpeakers, setActiveSpeakers] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<ChatMode>('chat');
   const [streaming, setStreaming] = useState(false);
+  const [runStatus, setRunStatus] = useState<ChatRunStatus>('idle');
+  const [progressDetail, setProgressDetail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [leftWidth, setLeftWidth] = useState(() => (
+    readStoredPanelWidth(localStorage.getItem.bind(localStorage), LEFT_PANEL.key, LEFT_PANEL.fallback, LEFT_PANEL.min, LEFT_PANEL.max)
+  ));
+  const [rightWidth, setRightWidth] = useState(() => (
+    readStoredPanelWidth(localStorage.getItem.bind(localStorage), RIGHT_PANEL.key, RIGHT_PANEL.fallback, RIGHT_PANEL.min, RIGHT_PANEL.max)
+  ));
+  const activeConvIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
+
+  useEffect(() => {
+    localStorage.setItem(LEFT_PANEL.key, String(leftWidth));
+  }, [leftWidth]);
+
+  useEffect(() => {
+    localStorage.setItem(RIGHT_PANEL.key, String(rightWidth));
+  }, [rightWidth]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const handleResizeStart = useCallback((
+    side: 'left' | 'right',
+    event: ReactMouseEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = side === 'left' ? leftWidth : rightWidth;
+    const config = side === 'left' ? LEFT_PANEL : RIGHT_PANEL;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const next = side === 'left' ? startWidth + delta : startWidth - delta;
+      const width = clampPanelWidth(next, config.min, config.max);
+      if (side === 'left') {
+        setLeftWidth(width);
+      } else {
+        setRightWidth(width);
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [leftWidth, rightWidth]);
 
   // Load mentors on mount
   useEffect(() => {
@@ -94,19 +111,15 @@ function App() {
 
   // Load messages when switching conversation
   useEffect(() => {
-    if (!activeConvId) {
-      setBubbles([]);
-      return;
-    }
+    if (!activeConvId) return;
     getMessages(activeConvId).then((msgs) => {
       setBubbles(messagesAsBubbles(msgs, mentorsById));
     }).catch(() => setError('Failed to load messages'));
   }, [activeConvId, mentorsById]);
 
   const handleNewConversation = useCallback(async () => {
-    const title = `Conversation ${new Date().toLocaleString()}`;
     try {
-      const { id } = await createConversation(title);
+      const { id } = await createConversation('新会话');
       const updated = await listConversations();
       setConversations(updated);
       setActiveConvId(id);
@@ -122,10 +135,45 @@ function App() {
     setError(null);
   }, [streaming]);
 
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    if (streaming) return;
+    const title = conversations.find((c) => c.id === id)?.title || 'this conversation';
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+
+    try {
+      await deleteConversation(id);
+      const updated = await listConversations();
+      setConversations(updated);
+      if (activeConvIdRef.current === id) {
+        const next = updated.find((c) => c.id !== id);
+        setActiveConvId(next?.id ?? null);
+        if (!next) setBubbles([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete conversation');
+    }
+  }, [conversations, streaming]);
+
+  const handleExportConversation = useCallback(async (id: string, format: ExportFormat) => {
+    try {
+      const { blob, filename } = await exportConversation(id, format);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export conversation');
+    }
+  }, []);
+
   const handleSend = useCallback(async (text: string, sendMode: ChatMode) => {
     if (streaming) return;
     setError(null);
     setStreaming(true);
+    setRunStatus(sendMode === 'review' ? 'reviewing' : 'routing');
+    setProgressDetail(sendMode === 'review' ? '准备深度评审' : '准备理解问题');
 
     let convId = activeConvId;
 
@@ -141,30 +189,49 @@ function App() {
       } catch {
         setError('Failed to create conversation');
         setStreaming(false);
+        setRunStatus('idle');
+        setProgressDetail(null);
         return;
       }
     }
 
     // Add user bubble immediately
-    const userBubble: BubbleState = { kind: 'user', text } as BubbleState;
+    let localBubbleId = 0;
+    const nextBubbleId = (prefix: string) => `${Date.now()}_${prefix}_${localBubbleId++}`;
+    const userBubble: BubbleState = { id: nextBubbleId('user'), kind: 'user', text } as BubbleState;
     setBubbles((prev) => [...prev, userBubble]);
 
-    // Track in-progress mentor bubbles by mentorId -> index in bubbles array
-    // We use a mutable map scoped to this send call
-    const mentorBubbleIndex = new Map<string, number>();
-    let synthesisIndex = -1;
+    // Track in-progress bubble IDs so removals do not desync token updates.
+    const mentorBubbleIds = new Map<string, string>();
+    let synthesisBubbleId: string | null = null;
 
     try {
       await streamChat(
         { conversation_id: convId, content: text, mode: sendMode },
         (event) => {
           switch (event.type) {
+            case 'progress': {
+              const status = event.status as ChatRunStatus | undefined;
+              const message = event.message as string | undefined;
+              if (status) setRunStatus(status);
+              if (message) setProgressDetail(message);
+              break;
+            }
+
+            case 'memory_saved': {
+              const content = event.content as string | undefined;
+              setToast(content ? `已保存到长期记忆：${content}` : '已保存到长期记忆');
+              break;
+            }
+
             case 'route': {
-              const speakers = (event.speakers as string[]) || [];
+              const rawSpeakers = (event.speakers as Array<{mentor_id: string}>) || [];
+              const speakers = rawSpeakers.map(s => typeof s === 'string' ? s : s.mentor_id);
               const reason = event.reason as string | undefined;
+              setRunStatus('streaming');
               setBubbles((prev) => [
                 ...prev,
-                { kind: 'route', speakers, reason } as BubbleState,
+                { id: nextBubbleId('route'), kind: 'route', speakers, reason } as BubbleState,
               ]);
               break;
             }
@@ -173,15 +240,14 @@ function App() {
               const mentorId = event.mentor_id as string;
               const name = event.name as string;
               const color = event.color as string;
+              const bubbleId = nextBubbleId(`mentor_${mentorId}`);
+              mentorBubbleIds.set(mentorId, bubbleId);
+              setRunStatus('streaming');
               setActiveSpeakers((prev) => new Set([...prev, mentorId]));
-              setBubbles((prev) => {
-                const idx = prev.length;
-                mentorBubbleIndex.set(mentorId, idx);
-                return [
-                  ...prev,
-                  { kind: 'mentor', mentorId, name, color, text: '', streaming: true } as BubbleState,
-                ];
-              });
+              setBubbles((prev) => [
+                ...prev,
+                { id: bubbleId, kind: 'mentor', mentorId, name, color, text: '', streaming: true } as BubbleState,
+              ]);
               break;
             }
 
@@ -191,35 +257,32 @@ function App() {
 
               if (mentorId === 'moderator') {
                 // Synthesis token
-                if (synthesisIndex === -1) {
-                  setBubbles((prev) => {
-                    synthesisIndex = prev.length;
-                    return [
-                      ...prev,
-                      { kind: 'synthesis', text: tokenText, streaming: true } as BubbleState,
-                    ];
-                  });
+                setRunStatus('synthesizing');
+                if (synthesisBubbleId === null) {
+                  synthesisBubbleId = nextBubbleId('synthesis');
+                  setBubbles((prev) => [
+                    ...prev,
+                    { id: synthesisBubbleId || undefined, kind: 'synthesis', text: tokenText, streaming: true } as BubbleState,
+                  ]);
                 } else {
                   setBubbles((prev) => {
-                    const updated = [...prev];
-                    const bubble = updated[synthesisIndex];
-                    if (bubble && bubble.kind === 'synthesis') {
-                      updated[synthesisIndex] = { ...bubble, text: bubble.text + tokenText };
-                    }
-                    return updated;
+                    return prev.map((bubble) => (
+                      bubble.id === synthesisBubbleId && bubble.kind === 'synthesis'
+                        ? { ...bubble, text: bubble.text + tokenText }
+                        : bubble
+                    ));
                   });
                 }
               } else {
                 // Mentor token — append to their bubble
-                const idx = mentorBubbleIndex.get(mentorId);
-                if (idx !== undefined) {
+                const bubbleId = mentorBubbleIds.get(mentorId);
+                if (bubbleId !== undefined) {
                   setBubbles((prev) => {
-                    const updated = [...prev];
-                    const bubble = updated[idx];
-                    if (bubble && bubble.kind === 'mentor') {
-                      updated[idx] = { ...bubble, text: bubble.text + tokenText };
-                    }
-                    return updated;
+                    return prev.map((bubble) => (
+                      bubble.id === bubbleId && bubble.kind === 'mentor'
+                        ? { ...bubble, text: bubble.text + tokenText }
+                        : bubble
+                    ));
                   });
                 }
               }
@@ -237,43 +300,39 @@ function App() {
 
               if (isSilent) {
                 // Remove the empty bubble for this silent mentor
-                const idx = mentorBubbleIndex.get(mentorId);
-                if (idx !== undefined) {
-                  setBubbles((prev) => prev.filter((_, i) => i !== idx));
-                  // Adjust indices for bubbles that came after
-                  mentorBubbleIndex.forEach((v, k) => {
-                    if (v > idx) mentorBubbleIndex.set(k, v - 1);
-                  });
-                  if (synthesisIndex > idx) synthesisIndex--;
+                const bubbleId = mentorBubbleIds.get(mentorId);
+                if (bubbleId !== undefined) {
+                  setBubbles((prev) => prev.filter((bubble) => bubble.id !== bubbleId));
                 }
               } else {
                 // Mark as done streaming
-                const idx = mentorBubbleIndex.get(mentorId);
-                if (idx !== undefined) {
+                const bubbleId = mentorBubbleIds.get(mentorId);
+                if (bubbleId !== undefined) {
                   setBubbles((prev) => {
-                    const updated = [...prev];
-                    const bubble = updated[idx];
-                    if (bubble && bubble.kind === 'mentor') {
-                      updated[idx] = { ...bubble, streaming: false };
-                    }
-                    return updated;
+                    return prev.map((bubble) => (
+                      bubble.id === bubbleId && bubble.kind === 'mentor'
+                        ? { ...bubble, streaming: false }
+                        : bubble
+                    ));
                   });
                 }
               }
-              mentorBubbleIndex.delete(mentorId);
+              mentorBubbleIds.delete(mentorId);
               break;
             }
 
             case 'synthesis_start': {
-              synthesisIndex = -1; // Will be created on first token
+              synthesisBubbleId = null; // Will be created on first token
+              setRunStatus('synthesizing');
               break;
             }
 
             case 'phase': {
               const name = event.name as string;
+              setRunStatus('reviewing');
               setBubbles((prev) => [
                 ...prev,
-                { kind: 'phase', name } as BubbleState,
+                { id: nextBubbleId('phase'), kind: 'phase', name } as BubbleState,
               ]);
               break;
             }
@@ -282,23 +341,24 @@ function App() {
               const markdown = event.markdown as string;
               setBubbles((prev) => [
                 ...prev,
-                { kind: 'report', text: markdown } as BubbleState,
+                { id: nextBubbleId('report'), kind: 'report', text: markdown } as BubbleState,
               ]);
               break;
             }
 
             case 'done': {
               // Mark synthesis as done
-              if (synthesisIndex !== -1) {
+              if (synthesisBubbleId !== null) {
                 setBubbles((prev) => {
-                  const updated = [...prev];
-                  const bubble = updated[synthesisIndex];
-                  if (bubble && bubble.kind === 'synthesis') {
-                    updated[synthesisIndex] = { ...bubble, streaming: false };
-                  }
-                  return updated;
+                  return prev.map((bubble) => (
+                    bubble.id === synthesisBubbleId && bubble.kind === 'synthesis'
+                      ? { ...bubble, streaming: false }
+                      : bubble
+                  ));
                 });
               }
+              setRunStatus('idle');
+              setProgressDetail(null);
               break;
             }
           }
@@ -308,11 +368,22 @@ function App() {
       setError(err instanceof Error ? err.message : 'Stream error');
     } finally {
       setStreaming(false);
+      setRunStatus('idle');
+      setProgressDetail(null);
       setActiveSpeakers(new Set());
-      // Refresh conversations list to update timestamps
+      // Refresh conversations and the active history from persisted state.
       listConversations().then(setConversations).catch(() => {});
+      if (convId) {
+        getMessages(convId)
+          .then((msgs) => {
+            if (activeConvIdRef.current === convId) {
+              setBubbles(messagesAsBubbles(msgs, mentorsById));
+            }
+          })
+          .catch(() => {});
+      }
     }
-  }, [activeConvId, streaming]);
+  }, [activeConvId, mentorsById, streaming]);
 
   return (
     <div style={{
@@ -323,11 +394,22 @@ function App() {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       overflow: 'hidden',
     }}>
-      <Sidebar
-        conversations={conversations}
-        activeId={activeConvId}
-        onSelect={handleSelectConversation}
-        onNew={handleNewConversation}
+      <div style={{ width: `${leftWidth}px`, minWidth: `${LEFT_PANEL.min}px`, maxWidth: `${LEFT_PANEL.max}px`, height: '100%' }}>
+        <Sidebar
+          conversations={conversations}
+          activeId={activeConvId}
+          onSelect={handleSelectConversation}
+          onNew={handleNewConversation}
+          onDelete={handleDeleteConversation}
+          onExport={handleExportConversation}
+          actionsDisabled={streaming}
+        />
+      </div>
+      <div
+        role="separator"
+        aria-label="Resize conversation sidebar"
+        onMouseDown={(event) => handleResizeStart('left', event)}
+        style={resizeHandleStyle}
       />
 
       <main style={{
@@ -358,7 +440,12 @@ function App() {
           </div>
         )}
 
-        <ChatStream bubbles={bubbles} mentorsById={mentorsById} />
+        <ChatStream
+          bubbles={bubbles}
+          mentorsById={mentorsById}
+          status={runStatus}
+          progressDetail={progressDetail}
+        />
 
         <Composer
           mode={mode}
@@ -368,9 +455,27 @@ function App() {
         />
       </main>
 
-      <MentorRoster mentors={mentors} activeSpeakers={activeSpeakers} />
+      <div
+        role="separator"
+        aria-label="Resize mentor roster"
+        onMouseDown={(event) => handleResizeStart('right', event)}
+        style={resizeHandleStyle}
+      />
+      <div style={{ width: `${rightWidth}px`, minWidth: `${RIGHT_PANEL.min}px`, maxWidth: `${RIGHT_PANEL.max}px`, height: '100%' }}>
+        <MentorRoster mentors={mentors} activeSpeakers={activeSpeakers} />
+      </div>
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   );
 }
+
+const resizeHandleStyle = {
+  width: '6px',
+  flex: '0 0 6px',
+  cursor: 'col-resize',
+  background: '#f8fafc',
+  borderLeft: '1px solid #e5e7eb',
+  borderRight: '1px solid #e5e7eb',
+};
 
 export default App;

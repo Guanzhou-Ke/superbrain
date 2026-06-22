@@ -8,8 +8,8 @@ interface MentorRosterProps {
 export function MentorRoster({ mentors, activeSpeakers }: MentorRosterProps) {
   return (
     <aside style={{
-      width: '220px',
-      minWidth: '180px',
+      width: '100%',
+      height: '100%',
       borderLeft: '1px solid #e5e7eb',
       display: 'flex',
       flexDirection: 'column',

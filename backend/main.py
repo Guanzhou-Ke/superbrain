@@ -1,10 +1,15 @@
 import json
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from backend.config import get_settings
+from backend.export import (
+    format_conversation_markdown,
+    markdown_to_pdf_bytes,
+    safe_export_filename,
+)
 from backend.memory import Store
 from backend.mentors import MentorLibrary
 from backend.models import ChatRequest
@@ -47,6 +52,42 @@ def create_app(provider=None, store=None, library=None) -> FastAPI:
     @app.get("/api/conversations/{cid}/messages")
     def messages(cid: str):
         return store.get_messages(cid)
+
+    @app.get("/api/conversations/{cid}/export")
+    def export_conversation(cid: str, format: str = "md"):
+        if format not in {"md", "pdf"}:
+            raise HTTPException(status_code=400, detail="Unsupported export format")
+        conversation = store.get_conversation(cid)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        mentor_names = {m.id: m.name for m in library.roster()}
+        markdown = format_conversation_markdown(
+            conversation,
+            store.get_messages(cid),
+            store.get_reports(cid),
+            mentor_names,
+        )
+        if format == "md":
+            filename = safe_export_filename(conversation["title"], "md")
+            return Response(
+                markdown,
+                media_type="text/markdown; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+
+        filename = safe_export_filename(conversation["title"], "pdf")
+        return Response(
+            markdown_to_pdf_bytes(markdown),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    @app.delete("/api/conversations/{cid}", status_code=204)
+    def delete_conversation(cid: str):
+        if not store.delete_conversation(cid):
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return Response(status_code=204)
 
     @app.post("/api/chat")
     async def chat_ep(req: ChatRequest):

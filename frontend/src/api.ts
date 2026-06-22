@@ -23,6 +23,8 @@ export interface Message {
   role: string;
   content: string;
   mentor_id: string | null;
+  mode: string;
+  is_silent: number;
   created_at: string;
 }
 
@@ -95,3 +97,37 @@ export const createConversation = (title: string): Promise<{ id: string }> =>
 
 export const getMessages = (cid: string): Promise<Message[]> =>
   fetch(`/api/conversations/${cid}/messages`).then((r) => r.json());
+
+export async function deleteConversation(cid: string): Promise<void> {
+  const resp = await fetch(`/api/conversations/${cid}`, { method: "DELETE" });
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+  }
+}
+
+export type ExportFormat = "md" | "pdf";
+
+function filenameFromContentDisposition(header: string | null, fallback: string): string {
+  const match = header?.match(/filename="?(?<filename>[^";]+)"?/);
+  return match?.groups?.filename || fallback;
+}
+
+export async function exportConversation(
+  cid: string,
+  format: ExportFormat,
+): Promise<{ blob: Blob; filename: string }> {
+  const resp = await fetch(`/api/conversations/${cid}/export?format=${format}`);
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+  }
+
+  const blob = await resp.blob();
+  const contentType = resp.headers.get("content-type") || blob.type;
+  return {
+    blob: contentType ? blob.slice(0, blob.size, contentType) : blob,
+    filename: filenameFromContentDisposition(
+      resp.headers.get("content-disposition"),
+      `conversation.${format}`,
+    ),
+  };
+}

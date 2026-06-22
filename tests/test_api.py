@@ -10,14 +10,19 @@ from tests.conftest import FakeProvider
 
 
 def _client():
+    return _client_with_store()[0]
+
+
+def _client_with_store():
     rj = '{"speakers":[{"mentor_id":"alice","directive":"d","order":1}],"synthesize":false}'
     provider = FakeProvider(scripted=[rj, "hello there"])
+    store = Store(":memory:")
     app = create_app(
         provider=provider,
-        store=Store(":memory:"),
+        store=store,
         library=MentorLibrary("tests/fixtures/mentors"),
     )
-    return TestClient(app)
+    return TestClient(app), store
 
 
 def test_list_mentors():
@@ -84,3 +89,78 @@ def test_chat_creates_conversation_if_no_id():
     ) as r:
         body = "".join(chunk for chunk in r.iter_text())
     assert "done" in body
+
+
+def test_delete_conversation_removes_session_data():
+    c, store = _client_with_store()
+    cid = c.post("/api/conversations", json={"title": "delete"}).json()["id"]
+    store.add_message(cid, "user", "hi")
+    store.save_report(cid, "# report")
+
+    r = c.delete(f"/api/conversations/{cid}")
+
+    assert r.status_code == 204
+    assert c.get(f"/api/conversations/{cid}/messages").json() == []
+    assert all(conv["id"] != cid for conv in c.get("/api/conversations").json())
+
+
+def test_delete_missing_conversation_returns_404():
+    c = _client()
+
+    r = c.delete("/api/conversations/missing")
+
+    assert r.status_code == 404
+
+
+def test_export_conversation_markdown_includes_messages_and_reports():
+    c, store = _client_with_store()
+    cid = c.post("/api/conversations", json={"title": "Export Title"}).json()["id"]
+    store.add_message(cid, "user", "hello")
+    store.add_message(cid, "mentor", "mentor reply", mentor_id="alice")
+    store.add_message(cid, "moderator", "summary", mentor_id="moderator")
+    store.save_report(cid, "# Review\n\n| A | B |\n| - | - |\n| x | y |")
+
+    r = c.get(f"/api/conversations/{cid}/export?format=md")
+
+    assert r.status_code == 200
+    assert "text/markdown" in r.headers["content-type"]
+    assert "attachment;" in r.headers["content-disposition"]
+    body = r.text
+    assert "# Export Title" in body
+    assert "## User" in body
+    assert "hello" in body
+    assert "## Alice" in body
+    assert "mentor reply" in body
+    assert "## Synthesis" in body
+    assert "summary" in body
+    assert "## Deep Review Report" in body
+    assert "| A | B |" in body
+
+
+def test_export_conversation_pdf_returns_pdf():
+    c, store = _client_with_store()
+    cid = c.post("/api/conversations", json={"title": "PDF Title"}).json()["id"]
+    store.add_message(cid, "user", "hello")
+
+    r = c.get(f"/api/conversations/{cid}/export?format=pdf")
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF")
+
+
+def test_export_missing_conversation_returns_404():
+    c = _client()
+
+    r = c.get("/api/conversations/missing/export?format=md")
+
+    assert r.status_code == 404
+
+
+def test_export_unknown_format_returns_400():
+    c = _client()
+    cid = c.post("/api/conversations", json={"title": "Export Title"}).json()["id"]
+
+    r = c.get(f"/api/conversations/{cid}/export?format=docx")
+
+    assert r.status_code == 400
