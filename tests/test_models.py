@@ -1,4 +1,4 @@
-from backend.models import RouteDecision, SpeakerDirective, ChatRequest, MentorReply
+from backend.models import RouteDecision, SpeakerDirective, ChatRequest, MentorReply, StageDecision
 
 
 def test_route_decision_parses_json():
@@ -31,6 +31,18 @@ def test_chat_request_defaults():
 def test_chat_request_mode_validation():
     r = ChatRequest(content="x", mode="review")
     assert r.mode == "review"
+
+
+def test_chat_request_accepts_stage_modes():
+    r = ChatRequest(content="x", mode="explore")
+    assert r.mode == "explore"
+
+
+def test_stage_decision_defaults():
+    d = StageDecision(stage="clarify")
+    assert d.confidence == 0.0
+    assert d.why == ""
+    assert d.framing == ""
 
 
 def test_mentor_reply_fields():

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
 from backend.config import get_settings
+from backend.context_manager import ConversationContextManager
 from backend.export import (
     format_conversation_markdown,
     markdown_to_pdf_bytes,
@@ -12,7 +13,7 @@ from backend.export import (
 )
 from backend.memory import Store
 from backend.mentors import MentorLibrary
-from backend.models import ChatRequest
+from backend.models import BranchCreateRequest, ChatRequest
 from backend.orchestrator.chat_router import ChatOrchestrator
 from backend.orchestrator.deep_review import DeepReviewOrchestrator
 from backend.providers.openai_compat import OpenAICompatProvider
@@ -26,7 +27,13 @@ def create_app(provider=None, store=None, library=None) -> FastAPI:
     store = store or Store(s.db_path)
     library = library or MentorLibrary("config/mentors")
 
-    chat = ChatOrchestrator(provider, library, store, s.max_chat_speakers)
+    chat = ChatOrchestrator(
+        provider,
+        library,
+        store,
+        s.max_chat_speakers,
+        context_manager=ConversationContextManager(s.context_max_tokens),
+    )
     review = DeepReviewOrchestrator(provider, library, store, s.review_rounds)
 
     app = FastAPI(title="SuperBrain")
@@ -47,11 +54,39 @@ def create_app(provider=None, store=None, library=None) -> FastAPI:
 
     @app.post("/api/conversations")
     def new_conversation(body: dict):
-        return {"id": store.create_conversation(body.get("title", "新会话"))}
+        title = str(body.get("title") or "新会话").strip() or "新会话"
+        cid = store.create_conversation(title)
+        return {"id": cid, "root_branch_id": store.ensure_branch_for_conversation(cid)}
 
     @app.get("/api/conversations/{cid}/messages")
     def messages(cid: str):
         return store.get_messages(cid)
+
+    @app.get("/api/conversations/{cid}/branches")
+    def branches(cid: str):
+        if store.get_conversation(cid) is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return store.list_branches(cid)
+
+    @app.post("/api/conversations/{cid}/branches")
+    def create_branch(cid: str, req: BranchCreateRequest):
+        if store.get_conversation(cid) is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        if req.parent_branch_id and store.get_branch(req.parent_branch_id) is None:
+            raise HTTPException(status_code=404, detail="Parent branch not found")
+        bid = store.create_branch(
+            cid,
+            req.parent_branch_id,
+            req.forked_from_message_id,
+            req.title,
+        )
+        return {"id": bid}
+
+    @app.get("/api/branches/{bid}/messages")
+    def branch_messages(bid: str):
+        if store.get_branch(bid) is None:
+            raise HTTPException(status_code=404, detail="Branch not found")
+        return store.get_branch_messages(bid)
 
     @app.get("/api/conversations/{cid}/export")
     def export_conversation(cid: str, format: str = "md"):
@@ -91,11 +126,12 @@ def create_app(provider=None, store=None, library=None) -> FastAPI:
 
     @app.post("/api/chat")
     async def chat_ep(req: ChatRequest):
-        cid = req.conversation_id or store.create_conversation(req.content[:20])
+        cid = req.conversation_id or store.create_conversation("新会话")
+        bid = req.branch_id or store.ensure_branch_for_conversation(cid)
         gen = (
             review.run(cid, req.content)
             if req.mode == "review"
-            else chat.run_turn(cid, req.content)
+            else chat.run_turn(cid, req.content, requested_mode=req.mode, branch_id=bid)
         )
 
         async def event_source():

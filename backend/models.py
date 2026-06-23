@@ -23,8 +23,22 @@ class RouteDecision(BaseModel):
 
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
+    branch_id: str | None = None
     content: str
-    mode: Literal["chat", "review"] = "chat"
+    mode: Literal["chat", "explore", "clarify", "decide", "plan", "review"] = "chat"
+
+
+class BranchCreateRequest(BaseModel):
+    parent_branch_id: str | None = None
+    forked_from_message_id: str | None = None
+    title: str = ""
+
+
+class StageDecision(BaseModel):
+    stage: Literal["explore", "clarify", "decide", "plan"]
+    confidence: float = 0.0
+    why: str = ""
+    framing: str = ""
 
 
 class MentorReply(BaseModel):

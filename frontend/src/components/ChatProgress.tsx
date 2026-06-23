@@ -2,8 +2,8 @@ import type { ChatRunStatus } from './ChatStream';
 
 const statusCopy: Record<ChatRunStatus, { title: string; detail: string }> = {
   idle: { title: '', detail: '' },
-  routing: { title: '正在思考', detail: '理解问题并编排导师' },
-  streaming: { title: '导师正在发言', detail: '多位导师并行生成观点' },
+  routing: { title: '正在思考', detail: '理解问题并编排专家视角' },
+  streaming: { title: '专家正在发言', detail: '多位专家并行生成观点' },
   synthesizing: { title: '正在汇总结论', detail: '主持人整合共识、分歧与下一步' },
   reviewing: { title: '正在深度评审', detail: '按阶段生成评审报告' },
 };

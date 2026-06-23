@@ -44,6 +44,7 @@ def test_create_and_list_conversation():
     r = c.post("/api/conversations", json={"title": "Test Conversation"})
     assert r.status_code == 200
     cid = r.json()["id"]
+    assert r.json()["root_branch_id"]
     assert cid
 
     r2 = c.get("/api/conversations")
@@ -62,11 +63,13 @@ def test_get_messages_empty():
 
 def test_chat_stream_returns_events():
     c = _client()
-    cid = c.post("/api/conversations", json={"title": "t"}).json()["id"]
+    created = c.post("/api/conversations", json={"title": "t"}).json()
+    cid = created["id"]
+    bid = created["root_branch_id"]
     with c.stream(
         "POST",
         "/api/chat",
-        json={"conversation_id": cid, "content": "hi", "mode": "chat"},
+        json={"conversation_id": cid, "branch_id": bid, "content": "hi", "mode": "chat"},
     ) as r:
         body = "".join(chunk for chunk in r.iter_text())
     assert "route" in body and "done" in body
@@ -104,6 +107,41 @@ def test_delete_conversation_removes_session_data():
     assert all(conv["id"] != cid for conv in c.get("/api/conversations").json())
 
 
+def test_list_branches_and_branch_messages():
+    c, store = _client_with_store()
+    created = c.post("/api/conversations", json={"title": "branches"}).json()
+    cid = created["id"]
+    root = created["root_branch_id"]
+    child = store.create_branch(cid, root, None, "Fork")
+    store.add_message(cid, "user", "root message", branch_id=root)
+    store.add_message(cid, "user", "fork message", branch_id=child)
+
+    branches = c.get(f"/api/conversations/{cid}/branches")
+    branch_messages = c.get(f"/api/branches/{child}/messages")
+
+    assert branches.status_code == 200
+    assert {b["id"] for b in branches.json()} == {root, child}
+    assert [m["content"] for m in branch_messages.json()] == ["fork message"]
+
+
+def test_create_branch_api():
+    c = _client()
+    created = c.post("/api/conversations", json={"title": "branches"}).json()
+    cid = created["id"]
+    root = created["root_branch_id"]
+
+    resp = c.post(
+        f"/api/conversations/{cid}/branches",
+        json={"parent_branch_id": root, "title": "Industrial"},
+    )
+
+    assert resp.status_code == 200
+    bid = resp.json()["id"]
+    branches = c.get(f"/api/conversations/{cid}/branches").json()
+    created_branch = next(b for b in branches if b["id"] == bid)
+    assert created_branch["parent_branch_id"] == root
+
+
 def test_delete_missing_conversation_returns_404():
     c = _client()
 
@@ -131,7 +169,7 @@ def test_export_conversation_markdown_includes_messages_and_reports():
     assert "hello" in body
     assert "## Alice" in body
     assert "mentor reply" in body
-    assert "## Synthesis" in body
+    assert "## 主持人" in body
     assert "summary" in body
     assert "## Deep Review Report" in body
     assert "| A | B |" in body

@@ -13,8 +13,8 @@ describe('ChatProgress', () => {
 
     expect(getByRole('status')).toBeTruthy();
     expect(getByText('正在思考')).toBeTruthy();
-    expect(getByText('理解问题并编排导师')).toBeTruthy();
-    expect(queryByTitle('编排导师')).toBeNull();
+    expect(getByText('理解问题并编排专家视角')).toBeTruthy();
+    expect(queryByTitle('编排专家视角')).toBeNull();
   });
 
   it('shows streamed progress details from the backend', () => {

@@ -6,10 +6,17 @@ export interface MentorInfo {
   color: string;
 }
 
+export interface RouteSpeaker {
+  id: string;
+  name: string;
+  directive?: string;
+  color?: string;
+}
+
 // Discriminated union for all bubble types in the chat stream.
 export type BubbleState =
   | { id?: string; kind: 'user'; text: string; mentorId: never; name: never; color: never; streaming: never; speakers: never; reason: never }
-  | { id?: string; kind: 'route'; speakers: string[]; reason?: string; text: never; mentorId: never; name: never; color: never; streaming: never }
+  | { id?: string; kind: 'route'; speakers: RouteSpeaker[]; reason?: string; text: never; mentorId: never; name: never; color: never; streaming: never }
   | { id?: string; kind: 'mentor'; mentorId: string; name: string; color: string; text: string; streaming: boolean; speakers: never; reason: never }
   | { id?: string; kind: 'synthesis'; text: string; streaming: boolean; mentorId: never; name: never; color: never; speakers: never; reason: never }
   | { id?: string; kind: 'phase'; name: string; text: never; mentorId: never; color: never; streaming: never; speakers: never; reason: never }

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     db_path: str = "superbrain.db"
     max_chat_speakers: int = 4
     review_rounds: int = 3
+    context_max_tokens: int = 2400
 
     def require_llm(self) -> None:
         if not self.llm_base_url or not self.llm_api_key:

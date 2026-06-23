@@ -17,9 +17,21 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface Branch {
+  id: string;
+  conversation_id: string;
+  parent_branch_id: string | null;
+  forked_from_message_id: string | null;
+  title: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
+  branch_id?: string | null;
   role: string;
   content: string;
   mentor_id: string | null;
@@ -34,7 +46,7 @@ export interface ChatEvent {
 }
 
 export async function streamChat(
-  body: { conversation_id: string | null; content: string; mode: string },
+  body: { conversation_id: string | null; branch_id?: string | null; content: string; mode: string },
   onEvent: (e: ChatEvent) => void,
 ): Promise<void> {
   const resp = await fetch("/api/chat", {
@@ -55,30 +67,46 @@ export async function streamChat(
     const { done, value } = await reader.read();
     if (done) break;
     buf += decoder.decode(value, { stream: true });
-    const parts = buf.split("\n\n");
-    buf = parts.pop() ?? "";
-    for (const p of parts) {
-      const line = p.split("\n").find((l) => l.startsWith("data:"));
-      if (line) {
-        try {
-          onEvent(JSON.parse(line.slice(5).trim()));
-        } catch {
-          // ignore malformed SSE data
-        }
-      }
-    }
+    const parsed = parseSseBuffer(buf, onEvent);
+    buf = parsed.remaining;
   }
 
   // flush remaining buffer
   if (buf.trim()) {
-    const line = buf.split("\n").find((l) => l.startsWith("data:"));
-    if (line) {
-      try {
-        onEvent(JSON.parse(line.slice(5).trim()));
-      } catch {
-        // ignore
-      }
-    }
+    parseSseEvent(buf, onEvent);
+  }
+}
+
+function parseSseBuffer(
+  buffer: string,
+  onEvent: (e: ChatEvent) => void,
+): { remaining: string } {
+  const normalized = buffer.replace(/\r\n/g, "\n");
+  const parts = normalized.split("\n\n");
+  const remaining = parts.pop() ?? "";
+
+  for (const part of parts) {
+    parseSseEvent(part, onEvent);
+  }
+
+  return { remaining };
+}
+
+function parseSseEvent(
+  rawEvent: string,
+  onEvent: (e: ChatEvent) => void,
+) {
+  const dataLines = rawEvent
+    .split("\n")
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim());
+
+  if (dataLines.length === 0) return;
+
+  try {
+    onEvent(JSON.parse(dataLines.join("\n")));
+  } catch {
+    // ignore malformed SSE data
   }
 }
 
@@ -88,7 +116,7 @@ export const listMentors = (): Promise<Mentor[]> =>
 export const listConversations = (): Promise<Conversation[]> =>
   fetch("/api/conversations").then((r) => r.json());
 
-export const createConversation = (title: string): Promise<{ id: string }> =>
+export const createConversation = (title: string): Promise<{ id: string; root_branch_id: string }> =>
   fetch("/api/conversations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -97,6 +125,22 @@ export const createConversation = (title: string): Promise<{ id: string }> =>
 
 export const getMessages = (cid: string): Promise<Message[]> =>
   fetch(`/api/conversations/${cid}/messages`).then((r) => r.json());
+
+export const listBranches = (cid: string): Promise<Branch[]> =>
+  fetch(`/api/conversations/${cid}/branches`).then((r) => r.json());
+
+export const createBranch = (
+  cid: string,
+  body: { parent_branch_id?: string | null; forked_from_message_id?: string | null; title?: string },
+): Promise<{ id: string }> =>
+  fetch(`/api/conversations/${cid}/branches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => r.json());
+
+export const getBranchMessages = (bid: string): Promise<Message[]> =>
+  fetch(`/api/branches/${bid}/messages`).then((r) => r.json());
 
 export async function deleteConversation(cid: string): Promise<void> {
   const resp = await fetch(`/api/conversations/${cid}`, { method: "DELETE" });

@@ -1,5 +1,9 @@
 from collections.abc import AsyncIterator
 
+from backend.conversation_titles import (
+    generate_conversation_title,
+    should_generate_conversation_title,
+)
 from backend.mentors import MentorLibrary
 from backend.memory import Store
 from backend.providers.base import LLMProvider
@@ -36,6 +40,14 @@ class DeepReviewOrchestrator:
             yield tok
 
     async def run(self, conversation_id: str, idea: str) -> AsyncIterator[dict]:
+        conversation = self._store.get_conversation(conversation_id)
+        if conversation and should_generate_conversation_title(
+            conversation.get("title"),
+            idea,
+            self._store.get_messages(conversation_id),
+        ):
+            title = await generate_conversation_title(self._p, idea)
+            self._store.update_conversation_title(conversation_id, title)
         self._store.add_message(conversation_id, "user", idea, mode="review")
         sections: dict[str, str] = {}
 

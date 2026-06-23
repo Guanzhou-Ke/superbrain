@@ -1,7 +1,7 @@
 [project]
 name = "superbrain"
 version = "0.1.0"
-description = "AI × 无人机 × 具身智能研究委员会 — multi-agent 头脑风暴系统"
+description = "General-purpose AI research brainstorming harness with multi-agent expert panels"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
@@ -14,7 +14,9 @@ dependencies = [
     "python-frontmatter",
     "python-dotenv",
     "httpx",
+    "socksio",
     "reportlab>=5.0.0",
+    "langchain-core>=1.4.8",
 ]
 
 [project.scripts]

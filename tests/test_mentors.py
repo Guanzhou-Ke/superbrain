@@ -1,4 +1,4 @@
-from backend.mentors import MentorLibrary, CRITICAL_CONSTITUTION
+from backend.mentors import MentorLibrary, CRITICAL_CONSTITUTION, STAGE_CONTRACTS
 
 LIB = "tests/fixtures/mentors"
 
@@ -20,6 +20,12 @@ def test_render_system_prompt_includes_persona_and_constitution():
     prompt = lib.render_system_prompt(lib.get("alice"))
     assert "alice" in prompt.lower() or "Alice" in prompt
     assert CRITICAL_CONSTITUTION.split("\n")[0] in prompt
+
+
+def test_render_system_prompt_includes_stage_contract():
+    lib = MentorLibrary(LIB)
+    prompt = lib.render_system_prompt(lib.get("alice"), stage="explore")
+    assert STAGE_CONTRACTS["explore"].split("\n")[0] in prompt
 
 
 def test_get_unknown_raises():

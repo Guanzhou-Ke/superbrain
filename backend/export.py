@@ -63,7 +63,7 @@ def format_conversation_markdown(
         if role == "user":
             heading = "User"
         elif mentor_id == "moderator" or role in {"moderator", "assistant"}:
-            heading = "Synthesis"
+            heading = "主持人"
         elif mentor_id:
             heading = mentor_names.get(mentor_id, mentor_id)
         else:
