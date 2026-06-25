@@ -35,8 +35,8 @@ export function Composer({ mode, onModeChange, onSend, disabled, suggestion, dra
 
   useEffect(() => {
     if (!draftText) return;
-    setText(draftText);
     requestAnimationFrame(() => {
+      setText(draftText);
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(draftText.length, draftText.length);
     });

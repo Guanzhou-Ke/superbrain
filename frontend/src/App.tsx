@@ -147,8 +147,10 @@ function App() {
   // Load branches when switching conversation
   useEffect(() => {
     if (!activeConvId) {
-      setBranches([]);
-      setActiveBranchId(null);
+      requestAnimationFrame(() => {
+        setBranches([]);
+        setActiveBranchId(null);
+      });
       return;
     }
     listBranches(activeConvId).then((items) => {

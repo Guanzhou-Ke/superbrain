@@ -180,8 +180,16 @@ export function extractCaseFromText(
 
   if (candidates.length === 0) return null;
 
-  const { score: _score, ...representativeCase } = candidates[0];
-  return representativeCase;
+  const top = candidates[0];
+  return {
+    id: top.id,
+    source: top.source,
+    color: top.color,
+    text: top.text,
+    signal: top.signal,
+    status: top.status,
+    rationale: top.rationale,
+  };
 }
 
 function splitInsightCandidates(text: string): string[] {

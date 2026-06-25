@@ -26,8 +26,8 @@ describe('Composer', () => {
     expect(onModeChange).toHaveBeenCalledWith('clarify');
   });
 
-  it('loads an injected draft into the textarea', () => {
-    const { getByDisplayValue } = render(
+  it('loads an injected draft into the textarea', async () => {
+    const { findByDisplayValue } = render(
       <Composer
         mode="plan"
         onModeChange={vi.fn()}
@@ -38,6 +38,6 @@ describe('Composer', () => {
       />,
     );
 
-    expect(getByDisplayValue('请把这个 case 转成实验问题')).toBeTruthy();
+    expect(await findByDisplayValue('请把这个 case 转成实验问题')).toBeTruthy();
   });
 });

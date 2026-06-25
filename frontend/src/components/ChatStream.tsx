@@ -943,7 +943,7 @@ export function ChatStream({
   }, [bubbles, status, progressDetail]);
 
   useEffect(() => {
-    setCaseExpanded(false);
+    requestAnimationFrame(() => setCaseExpanded(false));
   }, [representativeCase?.id]);
 
   return (
